@@ -18,4 +18,6 @@ A tool that simplifies complex privacy policies into easy-to-understand bullet p
 - Organizes output into clear sections
 - User-friendly interface
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+## TRY It Live 
+
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/decrypter/policy-simplifier)
