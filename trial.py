@@ -1,18 +1,21 @@
 import gradio as gr
-from transformers import BartTokenizer, BartForConditionalGeneration
+from transformers import T5Tokenizer, T5ForConditionalGeneration
 import torch
 import PyPDF2
 import docx
+import os
+import base64
+from pathlib import Path
 
 class PrivacyPolicySimplifier:
     def __init__(self):
         try:
-            # Using BART for better simplification
-            model_name = "facebook/bart-large-cnn"
+            # Using T5-small model (much faster than BART-large)
+            model_name = "t5-base"  # or "t5-base" for slightly better quality
             
             print("Loading model...")
-            self.tokenizer = BartTokenizer.from_pretrained(model_name)
-            self.model = BartForConditionalGeneration.from_pretrained(model_name)
+            self.tokenizer = T5Tokenizer.from_pretrained(model_name)
+            self.model = T5ForConditionalGeneration.from_pretrained(model_name)
             
             print("Model loaded successfully!")
             
@@ -43,8 +46,8 @@ class PrivacyPolicySimplifier:
 
     def simplify(self, text):
         try:
-            # Add prompt for simplified explanation in bullet points
-            input_text = "Explain this privacy policy in simple terms and organize key points: " + text
+            # T5 requires a specific prefix for tasks
+            input_text = "summarize: " + text
             
             inputs = self.tokenizer(input_text, 
                                   return_tensors="pt", 
@@ -53,16 +56,14 @@ class PrivacyPolicySimplifier:
             
             outputs = self.model.generate(
                 inputs["input_ids"],
-                max_length=300,  # Increased for more detailed explanation
+                max_length=300,
                 min_length=100,
-                num_beams=4,
-                length_penalty=2.0,
+                num_beams=2,  # Reduced for speed
+                length_penalty=1.5,
                 early_stopping=True
             )
             
             summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            # Process the summary into organized bullet points
             return self.format_into_sections(summary)
             
         except Exception as e:
@@ -97,39 +98,88 @@ class PrivacyPolicySimplifier:
         return formatted_text
 
 def create_gradio_interface():
-    # Initialize the simplifier
     simplifier = PrivacyPolicySimplifier()
     
-    # Define the processing functions
-    def process_input(text_input, file_input):
-        if text_input and file_input is not None:
-            return "Please use either text input OR file upload, not both."
+    # Add demo PDF files
+    DEMO_POLICIES = {
+        "Facebook Privacy Policy": "demo_policies/facebook_privacy.pdf",
+        "Google Privacy Policy": "demo_policies/google_privacy.pdf",
+        "Amazon Privacy Policy": "demo_policies/Amazon_Privacy.pdf",
+        "Dun & Bradstreet Privacy Policy": "demo_policies/dun&bradstreet_privacy.pdf",
+        "Identita Privacy Policy": "demo_policies/identita_privacy.pdf",
+        "IndianOil Privacy Policy": "demo_policies/IndianOil_Privacy.pdf",
+        "Flinders University Privacy Policy": "demo_policies/Flinders_Privacy.pdf",
+        "Twitter Privacy Policy": "demo_policies/Twitter_Privacy.pdf",
+        "Kpmg Privacy Policy": "demo_policies/Kpmg_Privacy.pdf",
+        "Mark&Spencer Privacy Policy": "demo_policies/Mark&Spencer_privacy.pdf",
+        "Apple Privacy Policy": "demo_policies/Apple_Privacy.pdf",
+    }
+
+    def process_demo_policy(demo_choice):
+        if not demo_choice:
+            return "Please select a demo policy"
         
-        if text_input:
+        file_path = DEMO_POLICIES[demo_choice]
+        try:
+            with open(file_path, 'rb') as file:
+                text = simplifier.extract_text_from_file(file)
+                if text:
+                    return simplifier.simplify(text)
+                return "Error processing the demo file"
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    def process_input(text_input, file_input, demo_choice):
+        if demo_choice:
+            return process_demo_policy(demo_choice)
+        elif text_input:
             return simplifier.simplify(text_input)
-        elif file_input is not None:
+        elif file_input:
             text = simplifier.extract_text_from_file(file_input)
             if text is None:
                 return "Error: Could not process file. Please ensure it's a PDF or DOCX file."
             return simplifier.simplify(text)
         else:
-            return "Please provide either text input or upload a file."
+            return "Please provide input using one of the available methods."
 
-    # Create the Gradio interface with improved UI
+    # Create the Gradio interface
     with gr.Blocks(theme=gr.themes.Soft()) as demo:
         gr.Markdown(
             """
             # 📄 Privacy Policy Simplifier
             ### Make complex privacy policies easy to understand! 🎯
+            
+            Try our tool with one of these options:
+            1. Use a demo privacy policy from popular companies
+            2. Paste your own privacy policy text
+            3. Upload a PDF/DOCX file
             """
         )
         
         with gr.Column():
-            gr.Markdown("### Choose your input method 👇")
+            # Demo policies dropdown
+            gr.Markdown("### Option 1: Try with Demo Privacy Policies")
+            demo_policy = gr.Dropdown(
+                choices=list(DEMO_POLICIES.keys()),
+                label="Select a company's privacy policy",
+                value=None
+            )
+            
+            with gr.Accordion("📌 About Demo Policies", open=False):
+                gr.Markdown("""
+                    These are real privacy policies from popular companies:
+                    - Facebook's privacy policy demonstrates social media data handling
+                    - Google's policy shows comprehensive data collection practices
+                    - Amazon's policy illustrates e-commerce data usage
+                    
+                    Select any policy to see how our tool simplifies it!
+                """)
+            
+            gr.Markdown("### OR")
             
             # Text input
             text_input = gr.Textbox(
-                label="Option 1: Paste Privacy Policy Text ✍️",
+                label="Option 2: Paste Privacy Policy Text ✍️",
                 placeholder="Paste your privacy policy text here...",
                 lines=10
             )
@@ -138,7 +188,7 @@ def create_gradio_interface():
             
             # File upload
             file_input = gr.File(
-                label="Option 2: Upload Privacy Policy File 📎",
+                label="Option 3: Upload Privacy Policy File 📎",
                 file_types=[".pdf", ".docx"],
                 type="filepath"
             )
@@ -149,45 +199,41 @@ def create_gradio_interface():
                 lines=15
             )
             
-            # Simplify button with better styling
+            # Simplify button
             simplify_button = gr.Button(
                 "Simplify ✨", 
                 variant="primary",
                 size="lg"
             )
             
-            # Add some helpful information
             gr.Markdown(
                 """
-                ### ℹ️ Instructions:
-                1. Choose **ONE** input method:
-                   - Either paste your text directly
-                   - Or upload a PDF/DOCX file
-                2. Click the 'Simplify' button
-                3. Get your simplified explanation!
+                ### 🎯 How to Use:
+                1. **Try Demo Policies**: Select from our pre-loaded company policies
+                2. **Custom Input**: Paste your own text or upload a file
+                3. **Get Results**: Click 'Simplify' to see the breakdown
                 
-                ### 📌 Note:
-                - Supported file formats: PDF, DOCX
-                - For best results, ensure clear and complete privacy policy text
+                ### 💡 Pro Tips:
+                - Start with demo policies to see how the tool works
+                - For best results, provide complete privacy policy sections
+                - Supported formats: PDF, DOCX
                 """
             )
         
         simplify_button.click(
             fn=process_input,
-            inputs=[text_input, file_input],
+            inputs=[text_input, file_input, demo_policy],
             outputs=output_text
         )
         
     return demo
 
-# Main execution
+# Create and launch the demo
+demo = create_gradio_interface()
+
 if __name__ == "__main__":
-    # Create and launch the interface
-    demo = create_gradio_interface()
-    demo.launch(
-        share=True,
-        server_name="0.0.0.0",
-        server_port=7860,
-        show_error=True
-    )
+    demo.launch()
+else:
+    # For HF Spaces
+    demo.queue(max_size=5)
 

@@ -1,0 +1,7 @@
+gradio>=4.44.1
+transformers
+torch
+PyPDF2
+python-docx
+sentencepiece
+protobuf 
