@@ -18,6 +18,16 @@ A tool that simplifies complex privacy policies into easy-to-understand bullet p
 - Organizes output into clear sections
 - User-friendly interface
 
-## TRY It Live 
 
-[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/decrypter/policy-simplifier)
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🔗 Links
+
+- [Live Demo](https://huggingface.co/spaces/decrypter/policy-simplifier)
+- [GitHub Repository](https://github.com/yourusername/privacy-policy-simplifier)
